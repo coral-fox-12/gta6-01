@@ -117,6 +117,7 @@ export class Game {
     document.exitPointerLock?.();
     this.sound.setEngine(0, false);
     this.sound.setSiren(false, 0);
+    this.updateContinueButton();
   }
 
   startGame(fresh) {
