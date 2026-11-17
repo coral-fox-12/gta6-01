@@ -88,7 +88,37 @@
 
 ## Known rough edges / to improve after first playable
 - No shadow maps (perf choice for headless SwiftShader); blob shadows only.
-- Traffic AI is simple lane-following; no traffic lights.
-- Enemy AI: bank guards + Harbor Rats only (no roaming gangs yet).
 - City textures are procedural canvas art (no image assets).
 - Police cars use the same arcade physics; ramming is a simple push.
+
+## Round 2 — traffic lights, The Vipers, mission 6 (2026-11-18, commits 0d4119f + a63d32e)
+- Traffic lights (game/src/traffic.js): 25 lights at central intersections,
+  20 s cycle (NS green 8 s, yellow 2 s, EW green 8 s, yellow 2 s), staggered
+  by (i+j)*2.5 s. Cars brake at red/yellow 8-16 m ahead; peds wait at the kerb
+  while their road is green for cars, cross on red.
+- Roaming gang (game/src/gangs.js): The Vipers, purple jackets + bandanas,
+  turf in the Docks (r 60 around -140,-140) + a pair in Old Town. 6 members
+  patrol their streets; they attack inside 26 m, and shooting one turns the
+  whole gang hostile (hunt from 60 m). Wiped patrols respawn after 45 s if
+  the player is >80 m from the turf. Minimap shows Vipers as purple dots.
+- Mission 6 "The Serpent's Head" ($6,000): goto the Docks → defeat Serpent +
+  4 Vipers → lose the heat. Six jobs total; title screen lists all six.
+- Verified (dev-tools/probe3.mjs, 33 s, 0 console errors): lights 25, cycle
+  math exact, update() flips the summary 25/0/25 -> 19/6/25; ped waits 0.00 m
+  in 3 s game on green, crosses 3.8 m on red; a traffic car sits at speed
+  0.83 with a yellow light 12.1 m ahead; all 6 Vipers patrol 4.7-4.8 m in
+  2 s game; gang attacks in turf, shoots (tracer seen), real click sets
+  gangAggro (Viper 1 health 60 -> 26) and Vipers 1-4 hunt within 60 m;
+  mission 6 pays $6,000 (money 250 -> 6,250), isDone true. Regression
+  (dev-tools/playtest.mjs): missions 1/2/4/5 + save/load + drive-by +
+  lighthouse all pass, 0 errors. Screenshots retaken (lights + Viper dots
+  visible); dossier rebuilds exit 0.
+- Headless-VM note: swiftshader runs the game at ~0.005-0.02x real time
+  (dt clamped 0.05 s/frame, frames ~2 s), so wall-clock waits in tests are
+  useless — dev-tools/probe3.mjs drives the game's own update functions
+  directly with fixed dt steps, and playtest.mjs gained a stepGame() helper
+  for mission transitions. The first playtest2 run's 6 failures were all
+  test artifacts of the slow frame rate (frozen light time, unmoved patrol,
+  stale title-orbit camera 64 m from the player) — no game bugs.
+- dev-tools/ (drive.mjs, playtest.mjs, playtest2.mjs, probe*.mjs) now lives
+  in the repo: /tmp is wiped on every VM replacement.
