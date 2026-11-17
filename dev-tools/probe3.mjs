@@ -269,7 +269,86 @@ async function main() {
     const inRange = hunt.filter((v) => v.dist <= 60);
     check('gang-hunts-within-60m', inRange.length > 0 && inRange.every((v) => v.state === 'attack'), hunt);
 
-    // ---------- 4. Mission 6: The Serpent's Head ----------
+    // ---------- 4. The Gull Kings: patrol, hostility, gang-wide aggro ----------
+    // Mission 7 is next but not started (active is null). Walk the Boardwalk
+    // at (174, 0) — inside Gull turf, 22 m from the mission-7 marker, so the
+    // mission does not start yet.
+    const gulls0 = await evalJs('window.__solmar.game.gangs.gulls.map(e => ({ name: e.name, faction: e.faction }))');
+    check('gull-count-6', gulls0.length === 6, gulls0.length);
+    check('gull-all-gull-faction', gulls0.every((v) => v.faction === 'gull'), gulls0);
+    const gpatrol = await evalJs(`(() => {
+      const g = window.__solmar.game;
+      const before = g.gangs.gulls.map((e) => ({ n: e.name, x: e.x, z: e.z }));
+      const dt = 1 / 60;
+      for (let i = 0; i < 120; i += 1) g.combat.updateEnemies(dt, g.player, g.colliders);
+      const moved = g.gangs.gulls.map((e) => {
+        const b = before.find((x) => x.n === e.name);
+        return b ? +Math.hypot(e.x - b.x, e.z - b.z).toFixed(1) : 0;
+      });
+      return { moved, states: g.gangs.gulls.map((e) => e.state) };
+    })()`);
+    out.gullPatrol = gpatrol;
+    check('gull-patrols-move', gpatrol.moved.some((d) => d > 2), gpatrol);
+    const ghost = await evalJs(`(() => {
+      const g = window.__solmar.game;
+      if (g.player.inCar) g.player.exitCar();
+      g.player.reset(174, 0);
+      const dt = 1 / 60;
+      let attacked = false; let sawTracer = false; let minHealth = g.player.health;
+      for (let i = 0; i < 180; i += 1) {
+        g.updatePlaying(dt);
+        if (g.combat.enemies.some((e) => e.faction === 'gull' && e.state === 'attack')) attacked = true;
+        if (g.combat.tracers.length > 0) sawTracer = true;
+        if (g.player.health < minHealth) minHealth = g.player.health;
+        if (attacked && (sawTracer || minHealth < 100)) break;
+      }
+      return { attacked, sawTracer, minHealth, mission: g.missions.active?.def.id || null };
+    })()`);
+    out.gullHostility = ghost;
+    check('gull-attacks-in-turf', ghost.attacked === true, ghost);
+    check('gull-shoots', ghost.sawTracer === true || ghost.minHealth < 100, ghost);
+    // Mission 1 (wheels-up) started at spawn during the traffic test and is
+    // still active — the Boardwalk teleport must not have started mission 7.
+    check('gull-mission7-not-started', ghost.mission === 'wheels-up', ghost);
+    // Gang-wide aggro through the REAL click path (same aim snap as Vipers).
+    const gsnap = await evalJs(`(() => {
+      const g = window.__solmar.game;
+      const v = g.combat.enemies.find((e) => e.faction === 'gull' && e.state !== 'down');
+      if (!v) return null;
+      g.player.camYaw = Math.atan2(v.x - g.player.x, v.z - g.player.z);
+      g.player.camPitch = 0.32;
+      g.player.cameraTarget(g.camera, 1, g.colliders, []);
+      const dir = g.camera.getWorldDirection(g.camera.position.clone());
+      const dx = v.x - g.camera.position.x, dy = 1.35 - g.camera.position.y, dz = v.z - g.camera.position.z;
+      const len = Math.hypot(dx, dy, dz);
+      return { name: v.name, health: v.health, aimDot: +((dir.x * dx + dir.y * dy + dir.z * dz) / len).toFixed(3) };
+    })()`);
+    out.gullAggroAim = gsnap;
+    check('gull-aim-dot', gsnap && gsnap.aimDot > 0.95, gsnap);
+    await click(640, 360);
+    await sleep(200);
+    const gaggro = await evalJs(`(() => {
+      const g = window.__solmar.game;
+      const px = g.player.x, pz = g.player.z;
+      return {
+        gullAggro: g.combat.gullAggro,
+        gulls: g.combat.enemies.filter((e) => e.faction === 'gull').map((e) => ({ name: e.name, state: e.state, health: e.health, dist: +Math.hypot(e.x - px, e.z - pz).toFixed(1) })),
+      };
+    })()`);
+    out.gullAggro = gaggro;
+    check('gull-aggro-set', gaggro.gullAggro === true, gaggro);
+    const ghunt = await evalJs(`(() => {
+      const g = window.__solmar.game;
+      const dt = 1 / 60;
+      for (let i = 0; i < 120; i += 1) g.combat.updateEnemies(dt, g.player, g.colliders);
+      const px = g.player.x, pz = g.player.z;
+      return g.combat.enemies.filter((e) => e.faction === 'gull' && e.state !== 'down').map((e) => ({ name: e.name, state: e.state, dist: +Math.hypot(e.x - px, e.z - pz).toFixed(1) }));
+    })()`);
+    out.gullAggroAfter = ghunt;
+    const gInRange = ghunt.filter((v) => v.dist <= 60);
+    check('gull-hunts-within-60m', gInRange.length > 0 && gInRange.every((v) => v.state === 'attack'), ghunt);
+
+    // ---------- 5. Mission 6: The Serpent's Head ----------
     const stepGame = (n) => evalJs(`(() => { const g = window.__solmar.game; const dt = 1 / 60; for (let i = 0; i < ${n}; i += 1) g.updatePlaying(dt); return true; })()`);
     const moneyBefore = (await state()).money;
     await evalJs(`(() => { const g = window.__solmar.game; g.missions.restore({ index: 5, completed: ['wheels-up','the-drop','heat-wave','the-big-score','harbor-lights'] }); g.missions.startNext(); })()`);
@@ -291,10 +370,36 @@ async function main() {
     await evalJs('window.__solmar.game.police.setWanted(0)');
     await stepGame(10);
     const s6 = await state();
-    out.mission6done = { money: s6.money, objective: s6.objective, done: await evalJs('window.__solmar.game.missions.isDone'), zone: await evalJs('window.__solmar.game.zoneName(-140, -140)') };
+    out.mission6done = { money: s6.money, objective: s6.objective, done: await evalJs('window.__solmar.game.missions.isDone'), next: await evalJs('window.__solmar.game.missions.currentDef?.id'), zone: await evalJs('window.__solmar.game.zoneName(-140, -140)') };
     check('mission6-pays-6000', s6.money === moneyBefore + 6000, { before: moneyBefore, after: s6.money });
-    check('mission6-done', out.mission6done.done === true, out.mission6done);
+    check('mission6-next-is-7', out.mission6done.done === false && out.mission6done.next === 'gull-kings', out.mission6done);
     check('turf-zone-name', out.mission6done.zone === 'Viper Turf — The Docks', out.mission6done.zone);
+
+    // ---------- 6. Mission 7: The Gull Kings ----------
+    const moneyBefore7 = (await state()).money;
+    await evalJs(`(() => { const g = window.__solmar.game; g.gangs.reset(); g.missions.restore({ index: 6, completed: ['wheels-up','the-drop','heat-wave','the-big-score','harbor-lights','serpents-head'] }); g.missions.startNext(); })()`);
+    await stepGame(10);
+    let m7 = await evalJs('({ id: window.__solmar.game.missions.active?.def.id, step: window.__solmar.game.missions.currentStep()?.text })');
+    out.mission7start = m7;
+    check('mission7-starts', m7.id === 'gull-kings', m7);
+    const gullCountBefore = await evalJs(`(() => { const g = window.__solmar.game; if (g.player.inCar) g.player.exitCar(); g.player.reset(196, 0); return g.combat.enemies.filter((e) => e.faction === 'gull' && e.state !== 'down').length; })()`);
+    await stepGame(10);
+    m7 = await evalJs('({ step: window.__solmar.game.missions.currentStep()?.text, enemies: window.__solmar.game.combat.enemies.map(e => e.name), wanted: window.__solmar.game.police.wanted, gulls: window.__solmar.game.combat.enemies.filter((e) => e.faction === "gull" && e.state !== "down").length })');
+    out.mission7fight = { ...m7, gullCountBefore };
+    check('mission7-crew-spawns', m7.enemies.includes('Kingfisher') && m7.gulls === gullCountBefore + 5, out.mission7fight);
+    check('mission7-defeat-step', (m7.step || '').includes('Kingfisher'), m7);
+    await evalJs(`(() => { const g = window.__solmar.game; for (const e of g.combat.enemies) { e.health = 0; e.state = 'down'; } for (let i = 0; i < 5; i += 1) g.missions.onEnemyDown(); })()`);
+    await stepGame(10);
+    m7 = await evalJs('({ step: window.__solmar.game.missions.currentStep()?.text })');
+    out.mission7afterFight = m7;
+    check('mission7-after-fight', (m7.step || '').includes('Lose the heat'), m7);
+    await evalJs('window.__solmar.game.police.setWanted(0)');
+    await stepGame(10);
+    const s7 = await state();
+    out.mission7done = { money: s7.money, objective: s7.objective, done: await evalJs('window.__solmar.game.missions.isDone'), zone: await evalJs('window.__solmar.game.zoneName(196, -16)') };
+    check('mission7-pays-8000', s7.money === moneyBefore7 + 8000, { before: moneyBefore7, after: s7.money });
+    check('mission7-done', out.mission7done.done === true, out.mission7done);
+    check('gull-turf-zone-name', out.mission7done.zone === 'Gull King Turf — The Boardwalk', out.mission7done.zone);
 
     out.errors = errors;
     out.failures = failures;

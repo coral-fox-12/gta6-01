@@ -1,6 +1,6 @@
 // SOLMAR BAY — main game. Boots three.js, wires every system together, runs the loop.
 // An original open-world crime game: on foot and by car, traffic, traffic lights,
-// pedestrians, police, a roaming gang, six story missions, combat, HUD + live
+// pedestrians, police, two roaming gangs, seven story missions, combat, HUD + live
 // minimap, save/load, synth sound.
 import * as THREE from 'three';
 import { buildCity, collideCircle, DISTRICTS, BEACH_X, SEA_X, HALF } from './city.js';
@@ -494,6 +494,7 @@ export class Game {
 
   zoneName(x, z) {
     if (this.gangs && this.gangs.inTurf(x, z)) return 'Viper Turf — The Docks';
+    if (this.gangs && this.gangs.inGullTurf(x, z)) return 'Gull King Turf — The Boardwalk';
     if (x > BEACH_X) return 'Solmar Beach';
     if (x > SEA_X - 40) return 'The Boardwalk';
     let best = null; let bestD = Infinity;
@@ -526,6 +527,8 @@ export class Game {
           this.spawnHarborRats();
         } else if (id === 'serpents-head' && this.enemiesSpawnedFor !== 'serpents-head') {
           this.spawnSerpentCrew();
+        } else if (id === 'gull-kings' && this.enemiesSpawnedFor !== 'gull-kings') {
+          this.spawnGullCrew();
         }
       }
     } else if (ev.type === 'mission-complete') {
@@ -593,6 +596,25 @@ export class Game {
     });
     this.police.setWanted(3);
     this.hud.showMessage('Serpent and his Vipers are armed — and the SBPD is coming. End it.', 5);
+    this.sound.wantedUp();
+  }
+
+  spawnGullCrew() {
+    this.enemiesSpawnedFor = 'gull-kings';
+    // Kingfisher holds the Boardwalk by the old arcade; his crew fans out
+    // along the beach front. The gold bandana marks the boss — the teal
+    // jackets mark the rest of the gang.
+    this.combat.spawnEnemy(190, -8, 'Kingfisher', 100, {
+      faction: 'gull', jacket: 0x0a3a3a, bandana: 0xe8c832,
+    });
+    const spots = [[196, -16], [174, 0], [196, 16], [214, 0]];
+    spots.forEach(([x, z], i) => {
+      this.combat.spawnEnemy(x, z, 'Gull King ' + (i + 1), 60, {
+        faction: 'gull', jacket: 0x0e7c86, bandana: 0xe8c832,
+      });
+    });
+    this.police.setWanted(3);
+    this.hud.showMessage('Kingfisher and his Gull Kings are armed — and the SBPD is coming. Take the Boardwalk back.', 5);
     this.sound.wantedUp();
   }
 
@@ -687,7 +709,9 @@ window.__solmar = {
     policeCars: game.police.cars.length,
     enemies: game.combat.enemies.length,
     vipers: game.gangs ? game.gangs.alive : 0,
+    gulls: game.gangs ? game.gangs.gullAlive : 0,
     gangAggro: game.combat.gangAggro,
+    gullAggro: game.combat.gullAggro,
     lights: game.trafficLights ? game.trafficLights.summary() : null,
   }),
 };

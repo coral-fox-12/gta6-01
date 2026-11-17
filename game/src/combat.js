@@ -15,6 +15,7 @@ export class Combat {
     this.fireCooldown = 0;
     this.rng = makeRng(4242);
     this.gangAggro = false; // shooting one Viper turns the whole gang hostile
+    this.gullAggro = false; // shooting one Gull King turns the whole gang hostile
     // Muzzle flash: a small additive sprite at the gun.
     const flashMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0 });
     this.flash = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), flashMat);
@@ -26,8 +27,9 @@ export class Combat {
   /**
    * Spawn an armed enemy at (x, z) with a name and health.
    * `opts.faction`: 'guard' (bank crew, brown suit) | 'rat' (Harbor Rats) |
-   * 'viper' (The Vipers gang, purple jacket + bandana). `opts.patrol` is a
-   * list of [x, z] waypoints the enemy walks between while guarding.
+   * 'viper' (The Vipers gang, purple jacket + bandana) | 'gull' (The Gull
+   * Kings, teal jacket + gold bandana). `opts.patrol` is a list of [x, z]
+   * waypoints the enemy walks between while guarding.
    */
   spawnEnemy(x, z, name, health = 60, opts = {}) {
     const g = new THREE.Group();
@@ -110,6 +112,7 @@ export class Combat {
       const e = best.target.ref;
       e.health -= 34;
       if (e.faction === 'viper') this.gangAggro = true; // the gang remembers
+      if (e.faction === 'gull') this.gullAggro = true; // the gang remembers
       if (e.health <= 0) {
         e.state = 'down';
         e.mesh.rotation.x = -Math.PI / 2;
@@ -141,6 +144,7 @@ export class Combat {
     if (best.kind === 'enemy') {
       best.ref.health -= 25;
       if (best.ref.faction === 'viper') this.gangAggro = true; // the gang remembers
+      if (best.ref.faction === 'gull') this.gullAggro = true; // the gang remembers
       if (best.ref.health <= 0) {
         best.ref.state = 'down';
         best.ref.mesh.rotation.x = -Math.PI / 2;
@@ -154,19 +158,23 @@ export class Combat {
   }
 
   /** Enemy AI: guards hold position (or walk a patrol), attackers chase and
-   *  shoot at the player. A Viper whose gang is aggro hunts from twice as far. */
+   *  shoot at the player. A Viper or Gull King whose gang is aggro hunts from
+   *  twice as far. */
   updateEnemies(dt, player, colliders) {
     const px = player.inCar ? player.inCar.x : player.x;
     const pz = player.inCar ? player.inCar.z : player.z;
-    // The gang cools off once every Viper is down.
+    // The gang cools off once every member of it is down.
     if (this.gangAggro && !this.enemies.some((e) => e.faction === 'viper' && e.state !== 'down')) {
       this.gangAggro = false;
+    }
+    if (this.gullAggro && !this.enemies.some((e) => e.faction === 'gull' && e.state !== 'down')) {
+      this.gullAggro = false;
     }
     for (const e of this.enemies) {
       if (e.state === 'down') continue;
       const d = dist2d(e.x, e.z, px, pz);
-      // A Viper whose gang is aggro hunts from twice as far away.
-      const aggroRange = e.faction === 'viper' && this.gangAggro ? 60 : 26;
+      // A gang member whose gang is aggro hunts from twice as far away.
+      const aggroRange = ((e.faction === 'viper' && this.gangAggro) || (e.faction === 'gull' && this.gullAggro)) ? 60 : 26;
       if (d < aggroRange) {
         e.state = 'attack';
         const target = Math.atan2(px - e.x, pz - e.z);

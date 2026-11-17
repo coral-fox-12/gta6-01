@@ -167,7 +167,26 @@ async function main() {
     s = await state();
     out.mission5done = { money: s.money, objective: s.objective, done: await evalJs('window.__solmar.game.missions.isDone') };
 
-    // 9. Lighthouse present.
+    // 9. Mission 7 flow: start it, go to the Boardwalk, defeat Kingfisher's crew, lose heat.
+    const moneyBefore7 = (await state()).money;
+    await evalJs(`(() => { const g = window.__solmar.game; g.missions.restore({ index: 6, completed: ['wheels-up','the-drop','heat-wave','the-big-score','harbor-lights','serpents-head'] }); g.missions.startNext(); })()`);
+    await sleep(500);
+    let m7 = await evalJs('({ id: window.__solmar.game.missions.active?.def.id, step: window.__solmar.game.missions.currentStep()?.text })');
+    out.mission7start = m7;
+    await evalJs(`(() => { const g = window.__solmar.game; if (g.player.inCar) g.player.exitCar(); g.player.reset(196, 0); })()`);
+    await stepGame(10);
+    m7 = await evalJs('({ step: window.__solmar.game.missions.currentStep()?.text, enemies: window.__solmar.game.combat.enemies.map(e => e.name), wanted: window.__solmar.game.police.wanted })');
+    out.mission7fight = m7;
+    await evalJs(`(() => { const g = window.__solmar.game; for (const e of g.combat.enemies) { e.health = 0; e.state = 'down'; } for (let i = 0; i < 5; i += 1) g.missions.onEnemyDown(); })()`);
+    await stepGame(10);
+    m7 = await evalJs('({ step: window.__solmar.game.missions.currentStep()?.text })');
+    out.mission7afterFight = m7;
+    await evalJs('window.__solmar.game.police.setWanted(0)');
+    await stepGame(10);
+    s = await state();
+    out.mission7done = { money: s.money, moneyBefore: moneyBefore7, objective: s.objective, done: await evalJs('window.__solmar.game.missions.isDone') };
+
+    // 10. Lighthouse present.
     out.lighthouse = await evalJs('window.__solmar.game.city.buildings.some(b => b.name === "Solmar Lighthouse")');
     out.errors = errors;
     console.log(JSON.stringify(out, null, 2));

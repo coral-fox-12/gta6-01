@@ -1,6 +1,6 @@
 // Missions and story for SOLMAR BAY.
 // Rook Marlowe, a wheelman who swore he was out, comes home to Solmar Bay because his
-// sister Lena owes fixer Vera Kross $40,000. Six jobs to pay it off. All original.
+// sister Lena owes fixer Vera Kross $40,000. Seven jobs to pay it off. All original.
 import * as THREE from 'three';
 import { money } from './util.js';
 
@@ -66,6 +66,17 @@ export const MISSIONS = [
     steps: [
       { id: 'docks', text: 'Go to the Docks — Viper turf (watch the purple jackets)', type: 'goto', x: -116, z: -140, radius: 12 },
       { id: 'serpent', text: 'Take down Serpent and his Vipers (5)', type: 'defeat', count: 5 },
+      { id: 'clean', text: 'Lose the heat', type: 'lose-wanted' },
+    ],
+  },
+  {
+    id: 'gull-kings',
+    title: '7 — The Gull Kings',
+    intro: 'Vera: "The Vipers are done, but the Gull Kings moved onto the Boardwalk while we were looking the other way. Their boss Kingfisher runs the beach trade out of the old arcade. Take the Boardwalk back — drop Kingfisher and his crew, then lose the heat. Eight grand, and the Bay is ours."',
+    reward: 8000,
+    steps: [
+      { id: 'boardwalk', text: 'Go to the Boardwalk — Gull King turf (watch the teal jackets)', type: 'goto', x: 196, z: 0, radius: 12 },
+      { id: 'kingfisher', text: 'Take down Kingfisher and his Gull Kings (5)', type: 'defeat', count: 5 },
       { id: 'clean', text: 'Lose the heat', type: 'lose-wanted' },
     ],
   },
@@ -239,4 +250,4 @@ export class MissionManager {
 }
 
 /** Short story text for the start screen. */
-export const STORY_BLURB = 'Rook Marlowe swore he was out. Then his sister Lena borrowed $40,000 from Vera Kross — the fixer who owns Solmar Bay after dark. Six jobs. One week. Pay it off, or the Bay keeps them both.';
+export const STORY_BLURB = 'Rook Marlowe swore he was out. Then his sister Lena borrowed $40,000 from Vera Kross — the fixer who owns Solmar Bay after dark. Seven jobs. One week. Pay it off, or the Bay keeps them both.';

@@ -120,10 +120,11 @@ export class Hud {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
-    // Enemies: red dots for guards and Rats, purple dots for Vipers.
+    // Enemies: red dots for guards and Rats, purple dots for Vipers, teal
+    // dots for Gull Kings.
     for (const e of enemies) {
       if (e.state === 'down') continue;
-      ctx.fillStyle = e.faction === 'viper' ? '#b04fe0' : '#ff4040';
+      ctx.fillStyle = e.faction === 'viper' ? '#b04fe0' : e.faction === 'gull' ? '#14b8a6' : '#ff4040';
       ctx.beginPath(); ctx.arc(world(e.x), world(e.z), 3, 0, Math.PI * 2); ctx.fill();
     }
     // Traffic cars (white dots).
