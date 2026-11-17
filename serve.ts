@@ -69,4 +69,5 @@ createServer((request, response) => {
   createReadStream(file).pipe(response);
 }).listen(port, '127.0.0.1', () => {
   console.log(`SOLMAR BAY game/ is on http://localhost:${port}`);
+  console.log(`  shots: http://localhost:${port}/?shot=start|drive|chase|street`);
 });

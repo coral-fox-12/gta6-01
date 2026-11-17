@@ -25,7 +25,7 @@ export const LANDMARKS = [
   { name: 'Bay Bank', x: 58, z: 29, w: 24, d: 20, h: 22, color: 0xd8c9a3 },
   { name: 'Marina Hotel', x: 174, z: -116, w: 22, d: 18, h: 40, color: 0xe0b48c },
   { name: 'The Rookery Garage', x: -58, z: 87, w: 24, d: 18, h: 12, color: 0x9aa98f },
-  { name: 'Pier 9', x: 232, z: -58, w: 10, d: 60, h: 4, color: 0x8a6f4d },
+  { name: 'Pier 9', x: 232, z: -58, w: 10, d: 60, h: 0.6, color: 0x8a6f4d },
 ];
 
 /** Street centrelines: streets[i] = coordinate of the i-th street. */
@@ -266,6 +266,32 @@ export function buildCity(scene, seed = 1) {
     crown.position.set(px, 6.4, z);
     group.add(trunk); group.add(crown);
   }
+
+  // The Solmar lighthouse at the tip of Pier 9: the landmark you steer home by.
+  // Striped tower, gallery deck, and a lamp that glows over the bay.
+  const lightMat = new THREE.MeshLambertMaterial({ color: 0xf2f2f2 });
+  const bandMat = new THREE.MeshLambertMaterial({ color: 0xc23b2e });
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 24, 12), lightMat);
+  tower.position.set(232, 12, -88);
+  group.add(tower);
+  // Bands are sized a touch wider than the tower at their height (the tower
+  // tapers from 3.2 m at the base to 2.2 m at the top), so they read as stripes.
+  for (const [y, r] of [[6, 3.05], [14, 2.72], [22, 2.38]]) {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(r - 0.06, r + 0.06, 3.4, 12), bandMat);
+    band.position.set(232, y, -88);
+    group.add(band);
+  }
+  const gallery = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 1, 12), new THREE.MeshLambertMaterial({ color: 0x22242a }));
+  gallery.position.set(232, 24.5, -88);
+  group.add(gallery);
+  const lamp = new THREE.Mesh(
+    new THREE.SphereGeometry(1.4, 10, 8),
+    new THREE.MeshLambertMaterial({ color: 0xffe9a8, emissive: 0xffdf8a }),
+  );
+  lamp.position.set(232, 26.5, -88);
+  group.add(lamp);
+  colliders.push({ minX: 232 - 3.2, maxX: 232 + 3.2, minZ: -88 - 3.2, maxZ: -88 + 3.2 });
+  buildings.push({ x: 232, z: -88, w: 6.4, d: 6.4, h: 27, name: 'Solmar Lighthouse' });
 
   // Road network for traffic + pedestrians: streets as axis-aligned lines.
   const streets = [];

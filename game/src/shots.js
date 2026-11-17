@@ -25,21 +25,31 @@ export function stageShot(name, api) {
     api.setWanted(3);
     api.spawnPoliceChase();
     api.setAutopilot(true);
-    api.teleportCar(0, -40, Math.PI / 2);
+    // Stage ON a road: (0,-40) was inside a building block, so the car wedged
+    // against the facade and never got moving. z=-58 is a street centreline.
+    api.teleportCar(0, -58, Math.PI / 2);
+    api.clearMessage();
     return 'play';
   }
   if (name === 'street') {
     // On foot in Downtown with the mission marker ahead, traffic and peds around.
     api.startMission(0);
-    api.teleportPlayer(-20, 20);
+    // (-20,20) was inside a building block; (-24,0) is on the z=0 street.
+    api.teleportPlayer(-24, 0);
     api.setAutopilot(false);
+    api.clearMessage();
     return 'play';
   }
-  // Default: 'drive' — cruising the Marina in a stolen car, mission 1 live.
+  // Default: 'drive' — cruising toward the Marina in a stolen car, mission 1 live.
+  // z=-58 is a street; heading +x runs it east past the Marina toward Pier 9
+  // and the sea, so the frame has a vista instead of a building face.
   api.startMission(0);
   const car = api.nearestCarTo(150, -100);
   api.putPlayerInCar(car);
-  api.teleportCar(150, -100, Math.PI / 2);
+  api.setAutopilot(true);
+  api.teleportCar(140, -58, Math.PI / 2);
+  api.clearMessage();
+  return 'play';
   api.setAutopilot(true);
   return 'play';
 }

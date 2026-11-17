@@ -1,6 +1,6 @@
 // Missions and story for SOLMAR BAY.
 // Rook Marlowe, a wheelman who swore he was out, comes home to Solmar Bay because his
-// sister Lena owes fixer Vera Kross $40,000. Four jobs to pay it off. All original.
+// sister Lena owes fixer Vera Kross $40,000. Five jobs to pay it off. All original.
 import * as THREE from 'three';
 import { money } from './util.js';
 
@@ -12,7 +12,7 @@ export const MISSIONS = [
     reward: 500,
     steps: [
       { id: 'steal', text: 'Steal a car (walk up to one and press E)', type: 'steal-car' },
-      { id: 'drive', text: 'Drive to the Marina marker', type: 'goto', x: 174, z: -116, radius: 10 },
+      { id: 'drive', text: 'Drive to the Marina marker', type: 'goto', x: 190, z: -116, radius: 10 },
     ],
   },
   {
@@ -22,7 +22,7 @@ export const MISSIONS = [
     reward: 800,
     steps: [
       { id: 'pickup', text: 'Meet Marla at Pier 9 (get out and walk to her)', type: 'goto', x: 232, z: -58, radius: 6, onFoot: true },
-      { id: 'deliver', text: 'Deliver the package to the Rookery Garage', type: 'goto', x: -58, z: 87, radius: 9 },
+      { id: 'deliver', text: 'Deliver the package to the Rookery Garage', type: 'goto', x: -58, z: 104, radius: 9 },
     ],
   },
   {
@@ -41,10 +41,21 @@ export const MISSIONS = [
     intro: 'Vera: "Last one. Bay Bank, Meridian Avenue. The vault crew is armed — so are you. Grab the cash, get out, lose the heat. Then we\'re even."',
     reward: 3000,
     steps: [
-      { id: 'bank', text: 'Go to Bay Bank on Meridian Avenue', type: 'goto', x: 58, z: 29, radius: 12 },
+      { id: 'bank', text: 'Go to Bay Bank on Meridian Avenue', type: 'goto', x: 58, z: 46, radius: 12 },
       { id: 'fight', text: 'Take down the bank guards (4)', type: 'defeat', count: 4 },
-      { id: 'grab', text: 'Grab the cash from the vault marker', type: 'goto', x: 58, z: 29, radius: 5, onFoot: true },
+      { id: 'grab', text: 'Grab the cash from the vault marker', type: 'goto', x: 58, z: 46, radius: 5, onFoot: true },
       { id: 'escape', text: 'Escape — lose the heat', type: 'lose-wanted' },
+    ],
+  },
+  {
+    id: 'harbor-lights',
+    title: '5 — Harbor Lights',
+    intro: 'Vera: "One more, Rook, then we\'re square. The Harbor Rats are moving my product off the Boardwalk. Meet my contact there, take the Rats down, and don\'t let the SBPD pin it on you."',
+    reward: 4000,
+    steps: [
+      { id: 'meet', text: 'Meet Vera\'s contact on the Boardwalk (on foot)', type: 'goto', x: 196, z: 58, radius: 6, onFoot: true },
+      { id: 'rats', text: 'Take down the Harbor Rats (3)', type: 'defeat', count: 3 },
+      { id: 'clean', text: 'Lose the heat', type: 'lose-wanted' },
     ],
   },
 ];
@@ -217,4 +228,4 @@ export class MissionManager {
 }
 
 /** Short story text for the start screen. */
-export const STORY_BLURB = 'Rook Marlowe swore he was out. Then his sister Lena borrowed $40,000 from Vera Kross — the fixer who owns Solmar Bay after dark. Four jobs. One week. Pay it off, or the Bay keeps them both.';
+export const STORY_BLURB = 'Rook Marlowe swore he was out. Then his sister Lena borrowed $40,000 from Vera Kross — the fixer who owns Solmar Bay after dark. Five jobs. One week. Pay it off, or the Bay keeps them both.';

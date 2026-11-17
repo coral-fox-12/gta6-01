@@ -98,7 +98,9 @@ export class Police {
         this.lastSeenTimer += dt;
         this.hiddenTimer += dt;
         // Lose a star after being unseen long enough (faster at low wanted).
-        const need = 8 + this.wanted * 4;
+        // Hiding on foot cools off faster than hiding in a car: a parked car
+        // is easy to spot, a person in an alley is not.
+        const need = (8 + this.wanted * 4) * (player.inCar ? 1 : 0.65);
         if (this.hiddenTimer > need) {
           this.wanted -= 1;
           this.hiddenTimer = 0;

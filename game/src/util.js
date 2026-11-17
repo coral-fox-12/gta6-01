@@ -18,6 +18,15 @@ export function makeRng(seed) {
     int: (lo, hi) => Math.floor(lo + rand() * (hi - lo + 1)),
     pick: (arr) => arr[Math.floor(rand() * arr.length)],
     chance: (p) => rand() < p,
+    /** Fisher-Yates shuffle; returns a new array, the input is untouched. */
+    shuffle: (arr) => {
+      const out = arr.slice();
+      for (let i = out.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(rand() * (i + 1));
+        const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+      }
+      return out;
+    },
   };
 }
 

@@ -63,7 +63,7 @@ export class Ped {
     this.mesh.position.y = 0.25;
   }
 
-  update(dt, colliders, rng, danger) {
+  update(dt, colliders, rng, danger, cars = null) {
     if (this.state === 'down') {
       this.downTimer -= dt;
       if (this.downTimer <= 0) {
@@ -78,6 +78,16 @@ export class Ped {
     if (danger && this.state !== 'flee') {
       const d = dist2d(this.x, this.z, danger.x, danger.z);
       if (d < 18) this.fleeFrom(danger.x, danger.z);
+    }
+    // Dodge a fast car bearing down: a pedestrian standing in the road dives
+    // out of the way instead of waiting to be run over.
+    if (cars && this.state !== 'flee') {
+      for (const c of cars) {
+        if (Math.abs(c.speed || 0) > 6 && dist2d(this.x, this.z, c.x, c.z) < 7) {
+          this.fleeFrom(c.x, c.z);
+          break;
+        }
+      }
     }
     if (this.state === 'flee') {
       this.fleeTimer -= dt;

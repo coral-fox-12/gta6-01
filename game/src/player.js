@@ -160,9 +160,16 @@ export class Player {
     }
   }
 
-  /** Third-person camera. Returns the camera position + look target. */
-  cameraTarget(camera, dt, colliders) {
+  /** Third-person camera. Returns the camera position + look target.
+   *  `otherCars` (optional) are cars that also block the camera: without this
+   *  a tailgating police car sits in the gap between camera and player and
+   *  fills the frame with its own grille. */
+  cameraTarget(camera, dt, colliders, otherCars = []) {
     let cx, cy, cz, tx, ty, tz;
+    // A camera point is blocked if it is inside a building footprint or
+    // within a car's body — in either case pull the camera in closer.
+    const blockedAt = (px, pz) => colliders.some((b) => px > b.minX && px < b.maxX && pz > b.minZ && pz < b.maxZ)
+      || otherCars.some((o) => Math.hypot(px - o.x, pz - o.z) < 2.0);
     if (this.inCar) {
       const car = this.inCar;
       const back = 9.5 + Math.abs(car.speed) * 0.12;
@@ -172,8 +179,16 @@ export class Player {
       tx = car.x + Math.sin(car.heading) * 6;
       tz = car.z + Math.cos(car.heading) * 6;
       ty = 1.4;
-      cx = car.x + bx * back;
-      cz = car.z + bz * back;
+      // Pull the camera in if a building or another car is in the way (same
+      // as on foot): without this the chase camera ends up inside a facade
+      // and the frame is half flat wall.
+      let useBack = back;
+      for (let d = back; d >= 3.0; d -= 0.8) {
+        if (!blockedAt(car.x + bx * d, car.z + bz * d)) { useBack = d; break; }
+        useBack = 3.0;
+      }
+      cx = car.x + bx * useBack;
+      cz = car.z + bz * useBack;
       cy = height;
     } else {
       tx = this.x + Math.sin(this.camYaw) * 4;
@@ -187,10 +202,7 @@ export class Player {
       // Pull the camera in if a building is in the way.
       let useDist = dist;
       for (let d = dist; d >= 2.4; d -= 0.6) {
-        const px = this.x + dx * d;
-        const pz = this.z + dz * d;
-        const inside = colliders.some((b) => px > b.minX && px < b.maxX && pz > b.minZ && pz < b.maxZ);
-        if (!inside) { useDist = d; break; }
+        if (!blockedAt(this.x + dx * d, this.z + dz * d)) { useDist = d; break; }
         useDist = 2.4;
       }
       cx = this.x + dx * useDist;

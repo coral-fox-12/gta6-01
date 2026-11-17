@@ -5,13 +5,24 @@
 // stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+
+// Fail fast with a clear message when there are no screenshots yet: the
+// dossier builder's own error only surfaces after the whole game is copied,
+// and an empty screenshots/ dir means the game was never actually rendered.
+const shotsDir = join(here, 'screenshots');
+const shotFiles = existsSync(shotsDir)
+  ? readdirSync(shotsDir).filter((f) => /\.(png|jpe?g|webp)$/i.test(f))
+  : [];
+if (shotFiles.length === 0) {
+  throw new Error('screenshots/ holds no image — capture real game frames first (see README "Screenshots").');
+}
 
 mkdirSync(out, { recursive: true });
 cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });

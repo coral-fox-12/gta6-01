@@ -204,8 +204,10 @@ export class Combat {
     ).normalize();
     const end = from.clone().addScaledVector(dir, Math.min(dist + 4, 40));
     this.addTracer(from, end);
-    // Hit chance falls with distance; a hit hurts.
-    const hitChance = clamp(0.42 - dist * 0.012, 0.06, 0.42);
+    // Hit chance falls with distance — and with the target's speed, so a fast
+    // drive-by is harder to punish than standing still in the open.
+    const targetSpeed = player.inCar ? Math.abs(player.inCar.speed) : 0;
+    const hitChance = clamp(0.42 - dist * 0.012 - targetSpeed * 0.008, 0.06, 0.42);
     if (this.rng.next() < hitChance) {
       player.takeDamage(this.rng.range(7, 13), performance.now() / 1000);
       return true;

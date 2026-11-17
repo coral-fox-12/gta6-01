@@ -1,6 +1,6 @@
 // SOLMAR BAY — main game. Boots three.js, wires every system together, runs the loop.
 // An original open-world crime game: on foot and by car, traffic, pedestrians, police,
-// wanted level, four story missions, combat, HUD + live minimap, save/load, synth sound.
+// wanted level, five story missions, combat, HUD + live minimap, save/load, synth sound.
 import * as THREE from 'three';
 import { buildCity, collideCircle, DISTRICTS, BEACH_X, SEA_X, HALF } from './city.js';
 import { spawnCars, Car } from './vehicles.js';
@@ -163,9 +163,11 @@ export class Game {
   showEnd(kind) {
     this.state = kind; // 'busted' | 'dead'
     if (kind === 'busted') {
+      this.sound.busted();
       this.endTitle.textContent = 'BUSTED';
       this.endSub.textContent = 'The SBPD hauled you in. Fine: ' + money(FINE_BUSTED) + '. Vera is not impressed.';
     } else {
+      this.sound.flatline();
       this.endTitle.textContent = 'FLATLINED';
       this.endSub.textContent = 'You woke up at St. Marina General, ' + money(FINE_DEAD) + ' lighter. The Bay doesn\'t wait.';
     }
@@ -233,11 +235,16 @@ export class Game {
       if (this.state !== 'playing') return;
       this.sound.init();
       if (e.button === 0) {
-        if (!this.player.inCar) this.tryShoot();
+        // Shooting works on foot and from a car (drive-by): the shot goes where
+        // the camera points, which while driving is straight ahead of the car.
+        this.tryShoot();
         this.dragging = true;
       }
       if (document.pointerLockElement !== this.canvas) {
-        this.canvas.requestPointerLock?.();
+        // Pointer lock can fail (headless, iframe, denied) and the call
+        // rejects as a promise in newer browsers — never let that surface
+        // as an uncaught exception; the game plays fine without the lock.
+        try { this.canvas.requestPointerLock?.()?.catch?.(() => {}); } catch { /* no pointer lock */ }
       }
     });
     window.addEventListener('mouseup', () => { this.dragging = false; });
@@ -249,7 +256,8 @@ export class Game {
     });
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => {
-      this.hud.setCrosshairVisible(this.state === 'playing' && !this.player.inCar);
+      // The crosshair stays visible while driving too: it is the drive-by sight.
+      this.hud.setCrosshairVisible(this.state === 'playing');
     });
   }
 
@@ -322,12 +330,18 @@ export class Game {
   }
 
   tryShoot() {
-    if (this.state !== 'playing' || this.player.inCar) return;
+    if (this.state !== 'playing') return;
     const origin = this.camera.position.clone();
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
     const result = this.combat.playerShoot(origin, dir, this.colliders, this.peds, this.player);
     if (!result) return;
+    // Any gunfire — hit or miss — scares nearby pedestrians away.
+    const px = this.player.inCar ? this.player.inCar.x : this.player.x;
+    const pz = this.player.inCar ? this.player.inCar.z : this.player.z;
+    for (const p of this.peds) {
+      if (dist2d(p.x, p.z, px, pz) < 15) p.fleeFrom(px, pz);
+    }
     if (result.type === 'hit-ped') {
       this.police.addCrime(1, 'shot a civilian');
       this.hud.showMessage('You shot a civilian! Wanted level up.', 3);
@@ -376,12 +390,14 @@ export class Game {
     return d;
   }
 
-  updateAmbient(dt, titleMode, danger = null) {
+  updateAmbient(dt, titleMode, danger = null, cars = null) {
     // Traffic and pedestrians keep the city alive even behind the title screen.
     for (const car of this.cars) {
       if (car.role === 'traffic') car.updateTraffic(dt, this.colliders, this.cars, this._rng());
     }
-    for (const p of this.peds) p.update(dt, this.colliders, this._rng(), danger);
+    // `cars` is only passed while playing: peds dodge fast cars, and behind the
+    // title screen the traffic is far from the camera anyway.
+    for (const p of this.peds) p.update(dt, this.colliders, this._rng(), danger, cars);
   }
 
   _rng() {
@@ -432,7 +448,7 @@ export class Game {
     const px = player.inCar ? player.inCar.x : player.x;
     const pz = player.inCar ? player.inCar.z : player.z;
     const danger = this.police.wanted > 0 ? { x: px, z: pz } : null;
-    this.updateAmbient(dt, false, danger);
+    this.updateAmbient(dt, false, danger, [...this.cars, ...this.police.cars]);
     const policeEvents = this.police.update(dt, player, this.cars, now);
     for (const ev of policeEvents) {
       if (ev.type === 'busted') { this.showEnd('busted'); return; }
@@ -450,14 +466,15 @@ export class Game {
     for (const ev of missionEvents) this.handleMissionEvent(ev);
 
     // --- camera, HUD, zone ---
-    player.cameraTarget(this.camera, dt, this.colliders);
+    player.cameraTarget(this.camera, dt, this.colliders,
+      [...this.cars, ...this.police.cars].filter((c) => c !== player.inCar));
     const speedKmh = player.inCar ? Math.abs(player.inCar.speed) * 3.6 : 0;
     this.hud.update(dt, {
       player, police: this.police, missions: this.missions,
       money: this.money, cars: this.cars, enemies: this.combat.enemies,
       speedKmh, zone: this.zoneName(px, pz),
     });
-    this.hud.setCrosshairVisible(!player.inCar);
+    this.hud.setCrosshairVisible(true);
 
     // --- autosave ---
     this.saveTimer += dt;
@@ -486,8 +503,16 @@ export class Game {
     } else if (ev.type === 'step') {
       this.sound.missionStart();
       this.hud.showMessage('Objective: ' + ev.step.text, 5);
-      if (ev.step.type === 'defeat' && this.enemiesSpawnedFor !== 'the-big-score') {
-        this.spawnBankGuards();
+      // Defeat steps spawn their own crew, keyed by mission: the old code only
+      // ever spawned bank guards (and only once), so a second defeat mission
+      // could never complete.
+      if (ev.step.type === 'defeat') {
+        const id = this.missions.active?.def.id;
+        if (id === 'the-big-score' && this.enemiesSpawnedFor !== 'the-big-score') {
+          this.spawnBankGuards();
+        } else if (id === 'harbor-lights' && this.enemiesSpawnedFor !== 'harbor-lights') {
+          this.spawnHarborRats();
+        }
       }
     } else if (ev.type === 'mission-complete') {
       this.money += ev.def.reward;
@@ -512,6 +537,19 @@ export class Game {
     const car = new Car(this.scene, x, z, heading, color, opts);
     this.cars.push(car);
     return car;
+  }
+
+  spawnHarborRats() {
+    this.enemiesSpawnedFor = 'harbor-lights';
+    // The Harbor Rats wait on the Boardwalk by Vera's contact (spawn spots are
+    // shuffled so the crew does not stand in the same order every run).
+    const spots = this._rng().shuffle([[202, 50], [204, 66], [192, 68]]);
+    spots.forEach(([x, z], i) => {
+      this.combat.spawnEnemy(x, z, 'Harbor Rat ' + (i + 1), 60);
+    });
+    this.police.setWanted(2);
+    this.hud.showMessage('The Harbor Rats are armed — and their friends called the SBPD.', 5);
+    this.sound.wantedUp();
   }
 
   spawnBankGuards() {
@@ -571,17 +609,22 @@ export class Game {
         this.hud.showMessage(this.missions.currentStep()?.text || '', 6);
       },
       setAutopilot: (on) => { this.autopilot = on; },
+      clearMessage: () => this.hud.clearMessage(),
       spawnPoliceChase: () => {
         for (let i = 0; i < 2; i += 1) this.police.spawnCar();
-        // Place the interceptors right behind the player for the frame.
+        // Place the interceptors behind the player for the frame (20 m / 30 m,
+        // 12 m/s): the player gets a head start and the chase reads through
+        // the wanted stars + minimap. (Flanking them puts them in the chase
+        // camera's dead zone, and they ram the player to a standstill before
+        // it gets moving — tried, worse.)
         const car = this.player.inCar;
         if (car) {
           this.police.cars.forEach((pc, i) => {
-            const back = 14 + i * 9;
+            const back = 20 + i * 10;
             pc.x = car.x - Math.sin(car.heading) * back + (i === 0 ? 4 : -4);
             pc.z = car.z - Math.cos(car.heading) * back;
             pc.heading = car.heading;
-            pc.speed = 16;
+            pc.speed = 12;
           });
         }
       },
@@ -601,7 +644,11 @@ window.__solmar = {
     inCar: !!game.player.inCar,
     mission: game.missions.active ? game.missions.active.def.id : null,
     objective: game.missions.objectiveText(),
-    player: { x: game.player.x, z: game.player.z },
+    // When driving, the player object stays where the player got in — report
+    // the car's position so this state is truthful while in a car.
+    player: game.player.inCar
+      ? { x: game.player.inCar.x, z: game.player.inCar.z }
+      : { x: game.player.x, z: game.player.z },
     cars: game.cars.length,
     peds: game.peds.length,
     policeCars: game.police.cars.length,

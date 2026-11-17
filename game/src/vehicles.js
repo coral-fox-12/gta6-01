@@ -122,13 +122,16 @@ export class Car {
     this.heading += this.steer * 1.9 * speedFactor * Math.sign(this.speed || 1) * dt;
     const nx = this.x + this.forwardX * this.speed * dt;
     const nz = this.z + this.forwardZ * this.speed * dt;
-    const [cx, cz] = collideCircle(colliders, nx, nz, 1.9);
+    const [cx0, cz0] = collideCircle(colliders, nx, nz, 1.9);
+    let cx = cx0, cz = cz0;
     const hitWall = (cx !== nx || cz !== nz);
     if (hitWall) {
       if (Math.abs(this.speed) > 6) this.speed *= -0.25;
       else this.speed *= 0.5;
     }
-    // Soft car-car collision: push apart, lose speed.
+    // Soft car-car collision: push apart, lose speed. (Accumulate the push
+    // into cx/cz — writing it to this.x here used to be overwritten by the
+    // final assignment below, so cars overlapped instead of shoving apart.)
     for (const other of otherCars) {
       if (other === this) continue;
       const d = dist2d(cx, cz, other.x, other.z);
@@ -136,8 +139,8 @@ export class Car {
         const push = (3.4 - d) / 2;
         const ux = (cx - other.x) / d;
         const uz = (cz - other.z) / d;
-        this.x = cx + ux * push;
-        this.z = cz + uz * push;
+        cx += ux * push;
+        cz += uz * push;
         this.speed *= 0.7;
         other.speed *= 0.7;
       }

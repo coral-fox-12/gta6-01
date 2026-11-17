@@ -114,6 +114,10 @@ export class SoundBank {
   }
   missionFail() { this.tone(392, 0.3, 0.22, 'sawtooth', 196); }
   wantedUp() { this.tone(220, 0.12, 0.2, 'square'); setTimeout(() => this.tone(220, 0.12, 0.2, 'square'), 140); }
+  /** Two-note descending sting for the BUSTED screen. */
+  busted() { this.tone(330, 0.25, 0.25, 'square', 220); setTimeout(() => this.tone(220, 0.45, 0.25, 'square', 110), 240); }
+  /** Long flat tone for the FLATLINED screen. */
+  flatline() { this.tone(110, 1.1, 0.2, 'sine'); setTimeout(() => this.tone(55, 0.8, 0.15, 'sine'), 300); }
 
   /** Original lo-fi bass loop: Am – F – C – G roots with a soft pluck. */
   startMusic() {

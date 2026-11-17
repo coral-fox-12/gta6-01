@@ -50,6 +50,13 @@ export class Hud {
     this.messageTimer = seconds;
   }
 
+  /** Clear the message bar (used by the ?shot= staging so the cover frame
+   *  shows the game, not a transient toast duplicating the objective). */
+  clearMessage() {
+    this.el.message.textContent = '';
+    this.messageTimer = 0;
+  }
+
   showBanner(title, sub, seconds = 3.5) {
     this.el['banner-title'].textContent = title;
     this.el['banner-sub'].textContent = sub || '';
