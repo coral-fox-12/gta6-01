@@ -14,6 +14,7 @@ export class Combat {
     this.ammo = Infinity; // Rook's pistol never runs dry in this build.
     this.fireCooldown = 0;
     this.rng = makeRng(4242);
+    this.gangAggro = false; // shooting one Viper turns the whole gang hostile
     // Muzzle flash: a small additive sprite at the gun.
     const flashMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0 });
     this.flash = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), flashMat);
@@ -22,11 +23,16 @@ export class Combat {
     this.flashTimer = 0;
   }
 
-  /** Spawn an armed enemy at (x, z) with a name and health. */
-  spawnEnemy(x, z, name, health = 60) {
+  /**
+   * Spawn an armed enemy at (x, z) with a name and health.
+   * `opts.faction`: 'guard' (bank crew, brown suit) | 'rat' (Harbor Rats) |
+   * 'viper' (The Vipers gang, purple jacket + bandana). `opts.patrol` is a
+   * list of [x, z] waypoints the enemy walks between while guarding.
+   */
+  spawnEnemy(x, z, name, health = 60, opts = {}) {
     const g = new THREE.Group();
     const skin = new THREE.MeshLambertMaterial({ color: 0xd9a077 });
-    const suit = new THREE.MeshLambertMaterial({ color: 0x3a2c22 });
+    const suit = new THREE.MeshLambertMaterial({ color: opts.jacket ?? 0x3a2c22 });
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), skin);
     head.position.y = 1.62;
     const shades = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.1), new THREE.MeshLambertMaterial({ color: 0x111111 }));
@@ -40,6 +46,12 @@ export class Combat {
     const gun = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.5), new THREE.MeshLambertMaterial({ color: 0x222222 }));
     gun.position.set(0.32, 1.25, 0.3);
     g.add(head, shades, body, legL, legR, gun);
+    if (opts.bandana) {
+      // A bandana across the lower face: the gang's calling card.
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.08), new THREE.MeshLambertMaterial({ color: opts.bandana }));
+      band.position.set(0, 1.52, 0.2);
+      g.add(band);
+    }
     g.position.set(x, 0, z);
     this.scene.add(g);
     const enemy = {
@@ -47,6 +59,10 @@ export class Combat {
       heading: this.rng.range(0, Math.PI * 2),
       shootTimer: this.rng.range(0.5, 1.5),
       state: 'guard', // guard | attack | down
+      faction: opts.faction || 'guard',
+      patrol: opts.patrol || null,
+      patrolIdx: 0,
+      patrolWait: 0,
       legL, legR, gun,
     };
     this.enemies.push(enemy);
@@ -93,6 +109,7 @@ export class Combat {
     if (best.target?.kind === 'enemy') {
       const e = best.target.ref;
       e.health -= 34;
+      if (e.faction === 'viper') this.gangAggro = true; // the gang remembers
       if (e.health <= 0) {
         e.state = 'down';
         e.mesh.rotation.x = -Math.PI / 2;
@@ -123,6 +140,7 @@ export class Combat {
     if (!best) return null;
     if (best.kind === 'enemy') {
       best.ref.health -= 25;
+      if (best.ref.faction === 'viper') this.gangAggro = true; // the gang remembers
       if (best.ref.health <= 0) {
         best.ref.state = 'down';
         best.ref.mesh.rotation.x = -Math.PI / 2;
@@ -135,20 +153,27 @@ export class Combat {
     return { type: 'hit-ped', ped: best.ref };
   }
 
-  /** Enemy AI: guards hold position; attackers chase and shoot at the player. */
+  /** Enemy AI: guards hold position (or walk a patrol), attackers chase and
+   *  shoot at the player. A Viper whose gang is aggro hunts from twice as far. */
   updateEnemies(dt, player, colliders) {
     const px = player.inCar ? player.inCar.x : player.x;
     const pz = player.inCar ? player.inCar.z : player.z;
+    // The gang cools off once every Viper is down.
+    if (this.gangAggro && !this.enemies.some((e) => e.faction === 'viper' && e.state !== 'down')) {
+      this.gangAggro = false;
+    }
     for (const e of this.enemies) {
       if (e.state === 'down') continue;
       const d = dist2d(e.x, e.z, px, pz);
-      const target = Math.atan2(px - e.x, pz - e.z);
-      let dh = target - e.heading;
-      dh = ((dh + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      e.heading += clamp(dh, -1, 1) * 5 * dt;
-      e.mesh.rotation.y = e.heading;
-      if (d < 26) {
+      // A Viper whose gang is aggro hunts from twice as far away.
+      const aggroRange = e.faction === 'viper' && this.gangAggro ? 60 : 26;
+      if (d < aggroRange) {
         e.state = 'attack';
+        const target = Math.atan2(px - e.x, pz - e.z);
+        let dh = target - e.heading;
+        dh = ((dh + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        e.heading += clamp(dh, -1, 1) * 5 * dt;
+        e.mesh.rotation.y = e.heading;
         if (d > 9) {
           const nx = e.x + Math.sin(e.heading) * 3.4 * dt;
           const nz = e.z + Math.cos(e.heading) * 3.4 * dt;
@@ -163,6 +188,30 @@ export class Combat {
         }
       } else {
         e.state = 'guard';
+        // Patrol: walk the waypoints instead of standing still.
+        if (e.patrol && e.patrol.length > 0) {
+          if (e.patrolWait > 0) {
+            e.patrolWait -= dt;
+          } else {
+            const [wx, wz] = e.patrol[e.patrolIdx];
+            const wd = dist2d(e.x, e.z, wx, wz);
+            if (wd < 2) {
+              e.patrolIdx = (e.patrolIdx + 1) % e.patrol.length;
+              e.patrolWait = 1.5;
+            } else {
+              const th = Math.atan2(wx - e.x, wz - e.z);
+              let dh = th - e.heading;
+              dh = ((dh + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+              e.heading += clamp(dh, -1, 1) * 4 * dt;
+              e.mesh.rotation.y = e.heading;
+              const nx = e.x + Math.sin(e.heading) * 2.4 * dt;
+              const nz = e.z + Math.cos(e.heading) * 2.4 * dt;
+              const [cx, cz] = collideCircle(colliders, nx, nz, 0.5);
+              e.x = cx; e.z = cz;
+              e.mesh.position.set(e.x, 0, e.z);
+            }
+          }
+        }
       }
     }
     // Tracers fade.

@@ -8,7 +8,7 @@ Games or any other commercial game.
 ## The story
 
 Rook Marlowe swore he was out. Then his sister Lena borrowed $40,000 from Vera Kross —
-the fixer who owns Solmar Bay after dark. Five jobs. One week. Pay it off, or the Bay
+the fixer who owns Solmar Bay after dark. Six jobs. One week. Pay it off, or the Bay
 keeps them both.
 
 ## Play
@@ -41,16 +41,22 @@ No build step, no network requests: every script is a file under `game/`
 - **Traffic and pedestrians** — AI cars follow the street grid and brake for the car
   ahead; citizens stroll the sidewalks, flee from gunfire and crime, and dive out
   of the way of speeding cars.
+- **Traffic lights** — 25 signals at the major intersections run a staggered
+  20-second cycle; traffic stops on red, and pedestrians wait at the kerb while
+  their road is green, then cross when the cars stop.
+- **The Vipers** — a roaming gang in purple jackets and bandanas holds turf in the
+  Docks (and watches Old Town). Walk into their turf and they come for you; shoot
+  one and the whole gang turns hostile.
 - **Wanted level + police** — 1–5 stars. Stealing cars, hitting pedestrians and
   assault raise heat. SBPD interceptors chase and ram; foot cops chase and arrest.
   Break line of sight and stay hidden to cool off — hiding on foot cools heat
   faster than hiding in a car.
-- **Five story missions** — Wheels Up, The Drop, Heat Wave, The Big Score,
-  Harbor Lights — with map markers, dialogue, objectives, pass/fail and cash
-  rewards.
+- **Six story missions** — Wheels Up, The Drop, Heat Wave, The Big Score,
+  Harbor Lights, The Serpent's Head — with map markers, dialogue, objectives,
+  pass/fail and cash rewards.
 - **Combat** — hitscan pistol with tracer and muzzle flash (including drive-by
-  shooting from a car), melee punches, armed bank guards and Harbor Rats who
-  shoot back, health and slow regen, cash pickups.
+  shooting from a car), melee punches, armed bank guards, Harbor Rats and Vipers
+  who shoot back, health and slow regen, cash pickups.
 - **HUD + live minimap** — health, money, wanted stars, clock, district name,
   mission objective, and a minimap showing roads, the player arrow, traffic,
   police and the mission marker.
@@ -73,7 +79,8 @@ Each is a real render of the live game (see `game/src/shots.js`).
 - `game/index.html` — the game page (import map for three.js).
 - `game/src/` — the game's own source, one job per file: `main.js` (bootstrap +
   loop), `city.js`, `vehicles.js`, `peds.js`, `player.js`, `police.js`,
-  `combat.js`, `missions.js`, `hud.js`, `audio.js`, `shots.js`, `util.js`.
+  `combat.js`, `missions.js`, `hud.js`, `audio.js`, `shots.js`, `util.js`,
+  `traffic.js` (traffic lights), `gangs.js` (The Vipers).
 - `game/vendor/three.module.min.js` — vendored three.js 0.170.0.
 - `screenshots/` — 4 real renders of the game.
 

@@ -2,7 +2,7 @@
 // who flee from gunfire and crime. Original characters, generated looks.
 import * as THREE from 'three';
 import { clamp, dist2d, makeRng } from './util.js';
-import { collideCircle, streetCoord, PITCH, GRID, HALF, ROAD } from './city.js';
+import { collideCircle, onRoad, streetCoord, PITCH, GRID, HALF, ROAD } from './city.js';
 
 const SKINS = [0xc98d64, 0x8a5a3b, 0xe8b98a, 0x6b4423, 0xd9a077];
 const SHIRTS = [0xc23b2e, 0x2e6fc2, 0xe8c832, 0x2fb573, 0x7a4fc2, 0xe07b2e, 0x3aa7a3, 0xf2f2f2, 0x22242a];
@@ -63,7 +63,7 @@ export class Ped {
     this.mesh.position.y = 0.25;
   }
 
-  update(dt, colliders, rng, danger, cars = null) {
+  update(dt, colliders, rng, danger, cars = null, lights = null) {
     if (this.state === 'down') {
       this.downTimer -= dt;
       if (this.downTimer <= 0) {
@@ -101,6 +101,22 @@ export class Ped {
     if (rng.chance(dt * 0.08)) this.targetHeading = rng.range(0, Math.PI * 2);
     const nx = this.x + Math.sin(this.heading) * speed * dt;
     const nz = this.z + Math.cos(this.heading) * speed * dt;
+    // Cross on red, wait on green: stepping off the kerb while the light is
+    // green for cars means walking into traffic, so the ped waits at the kerb
+    // until the light turns. Fleeing peds ignore the lights (running for it).
+    if (lights && this.state === 'walk' && !onRoad(this.x, this.z) && onRoad(nx, nz)) {
+      const streets = [];
+      for (let i = 0; i <= GRID * 2; i += 1) streets.push(streetCoord(i));
+      const dz = Math.min(...streets.map((s) => Math.abs(s - nz)));
+      const dx = Math.min(...streets.map((s) => Math.abs(s - nx)));
+      const axis = dz <= dx ? 'x' : 'z';
+      if (lights.phaseAt(nx, nz, axis) === 'green') {
+        // Stand at the kerb, facing the road, until the light changes.
+        this.mesh.position.set(this.x, this.mesh.position.y, this.z);
+        this.mesh.rotation.y = this.heading;
+        return;
+      }
+    }
     const [cx, cz] = collideCircle(colliders, nx, nz, 0.5);
     if (cx !== nx || cz !== nz) {
       // Bumped into a building: turn around.

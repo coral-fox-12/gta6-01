@@ -95,5 +95,17 @@ export function autopilotInput(game, dt) {
     const ahead = (other.x - car.x) * Math.sin(car.heading) + (other.z - car.z) * Math.cos(car.heading);
     if (ahead > 0 && ahead < 14 && d < 4) { throttle = 0; brake = 1; break; }
   }
+  // Stop at a red (or yellow) light, same rule as the traffic AI: brake while
+  // the stop line is 8–15 m ahead; already inside the crossing, roll through.
+  if (game.trafficLights) {
+    const dir = axis === 'x'
+      ? (Math.sin(car.heading) > 0 ? 1 : -1)
+      : (Math.cos(car.heading) > 0 ? 1 : -1);
+    const light = game.trafficLights.lightAhead(car.x, car.z, axis, dir);
+    if (light && light.dist >= 8 && light.dist < 15 && light.phase !== 'green') {
+      throttle = 0;
+      brake = 1;
+    }
+  }
   return { throttle, brake, steer };
 }

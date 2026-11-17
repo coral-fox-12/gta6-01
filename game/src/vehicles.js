@@ -155,8 +155,10 @@ export class Car {
     return hitWall;
   }
 
-  /** Traffic AI: follow a street, stop for cars ahead, turn at intersections. */
-  updateTraffic(dt, colliders, allCars, rng) {
+  /** Traffic AI: follow a street, stop for cars ahead, turn at intersections.
+   *  `lights` (optional TrafficLights) makes the car stop at a red light
+   *  instead of rolling through the crossing. */
+  updateTraffic(dt, colliders, allCars, rng, lights = null) {
     if (this.stopped > 0) {
       this.stopped -= dt;
       this.drive(dt, { throttle: 0, brake: 1, steer: 0 }, colliders, allCars);
@@ -186,6 +188,15 @@ export class Car {
       const ahead = dx * this.forwardX + dz * this.forwardZ;
       const side = Math.abs(dx * this.forwardZ - dz * this.forwardX);
       if (ahead > 0 && ahead < 12 && side < 2.6) { brake = 1; throttle = 0; break; }
+    }
+    // Stop at a red (or yellow) light: brake while the stop line is 8–16 m
+    // ahead; inside the crossing already, keep rolling through.
+    if (lights) {
+      const ahead = lights.lightAhead(this.x, this.z, this.routeAxis, this.routeDir);
+      if (ahead && ahead.dist >= 8 && ahead.dist < 16 && ahead.phase !== 'green') {
+        brake = 1;
+        throttle = 0;
+      }
     }
     this.drive(dt, { throttle, brake, steer: clamp(steer, -1, 1) }, colliders, allCars);
     // Cap traffic speed.

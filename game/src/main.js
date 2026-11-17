@@ -1,6 +1,7 @@
 // SOLMAR BAY — main game. Boots three.js, wires every system together, runs the loop.
-// An original open-world crime game: on foot and by car, traffic, pedestrians, police,
-// wanted level, five story missions, combat, HUD + live minimap, save/load, synth sound.
+// An original open-world crime game: on foot and by car, traffic, traffic lights,
+// pedestrians, police, a roaming gang, six story missions, combat, HUD + live
+// minimap, save/load, synth sound.
 import * as THREE from 'three';
 import { buildCity, collideCircle, DISTRICTS, BEACH_X, SEA_X, HALF } from './city.js';
 import { spawnCars, Car } from './vehicles.js';
@@ -12,6 +13,8 @@ import { MissionManager, MISSIONS, STORY_BLURB } from './missions.js';
 import { Hud } from './hud.js';
 import { SoundBank } from './audio.js';
 import { stageShot, autopilotInput } from './shots.js';
+import { TrafficLights } from './traffic.js';
+import { Gangs, GANG_TURF } from './gangs.js';
 import { clamp, dist2d, makeRng, money } from './util.js';
 
 const SAVE_KEY = 'solmar-bay-save-v1';
@@ -85,12 +88,14 @@ export class Game {
     const city = buildCity(this.scene, this.seed);
     this.city = city;
     this.colliders = city.colliders;
+    this.trafficLights = new TrafficLights(this.scene);
     this.cars = spawnCars(this.scene, this.seed, this.colliders);
     this.peds = spawnPeds(this.scene, 26, this.seed, this.colliders);
     this.player = new Player(this.scene);
     this.player.reset(SPAWN.x, SPAWN.z);
     this.police = new Police(this.scene, this.colliders);
     this.combat = new Combat(this.scene, this.sound);
+    this.gangs = new Gangs(this.scene, this.combat);
     this.combat.onCash = (v) => { this.money += v; this.hud.showMessage('Picked up ' + money(v)); };
     this.missions = new MissionManager(this.scene);
     this.updateContinueButton();
@@ -123,6 +128,7 @@ export class Game {
       this.missions.restore({ index: 0, completed: [] });
       this.combat.clearEnemies();
       this.combat.clearPickups();
+      this.gangs.reset();
       this.police.reset();
       this.player.reset(SPAWN.x, SPAWN.z);
       this.markedCar = null;
@@ -183,6 +189,7 @@ export class Game {
     this.player.health = this.player.maxHealth;
     this.missions.active = null; // restart the current mission from its marker
     this.combat.clearEnemies();
+    this.gangs.reset();
     this.enemiesSpawnedFor = null;
     this.state = 'playing';
     this.saveGame();
@@ -207,6 +214,7 @@ export class Game {
     this.missions.restore(data.missions);
     this.combat.clearEnemies();
     this.combat.clearPickups();
+    this.gangs.reset();
     this.police.reset();
     this.player.reset(data.player?.x ?? SPAWN.x, data.player?.z ?? SPAWN.z);
     this.player.health = data.player?.health ?? 100;
@@ -391,13 +399,15 @@ export class Game {
   }
 
   updateAmbient(dt, titleMode, danger = null, cars = null) {
-    // Traffic and pedestrians keep the city alive even behind the title screen.
+    // Traffic lights keep cycling even behind the title screen, and traffic
+    // and pedestrians keep the city alive.
+    if (this.trafficLights) this.trafficLights.update(dt);
     for (const car of this.cars) {
-      if (car.role === 'traffic') car.updateTraffic(dt, this.colliders, this.cars, this._rng());
+      if (car.role === 'traffic') car.updateTraffic(dt, this.colliders, this.cars, this._rng(), this.trafficLights);
     }
     // `cars` is only passed while playing: peds dodge fast cars, and behind the
     // title screen the traffic is far from the camera anyway.
-    for (const p of this.peds) p.update(dt, this.colliders, this._rng(), danger, cars);
+    for (const p of this.peds) p.update(dt, this.colliders, this._rng(), danger, cars, this.trafficLights);
   }
 
   _rng() {
@@ -457,6 +467,7 @@ export class Game {
     }
     this.sound.setSiren(this.police.sirenOn, dt);
     this.combat.updateEnemies(dt, player, this.colliders);
+    this.gangs.update(dt, px, pz);
 
     // --- missions ---
     const missionEvents = this.missions.update(dt, {
@@ -482,6 +493,7 @@ export class Game {
   }
 
   zoneName(x, z) {
+    if (this.gangs && this.gangs.inTurf(x, z)) return 'Viper Turf — The Docks';
     if (x > BEACH_X) return 'Solmar Beach';
     if (x > SEA_X - 40) return 'The Boardwalk';
     let best = null; let bestD = Infinity;
@@ -512,6 +524,8 @@ export class Game {
           this.spawnBankGuards();
         } else if (id === 'harbor-lights' && this.enemiesSpawnedFor !== 'harbor-lights') {
           this.spawnHarborRats();
+        } else if (id === 'serpents-head' && this.enemiesSpawnedFor !== 'serpents-head') {
+          this.spawnSerpentCrew();
         }
       }
     } else if (ev.type === 'mission-complete') {
@@ -560,6 +574,25 @@ export class Game {
     });
     this.police.setWanted(3);
     this.hud.showMessage('Bank guards are armed! Take them down — the SBPD is coming.', 5);
+    this.sound.wantedUp();
+  }
+
+  spawnSerpentCrew() {
+    this.enemiesSpawnedFor = 'serpents-head';
+    // Serpent holds the old fish market at the Docks; his crew fans out along
+    // the streets around him. The red bandana marks the boss — the purple
+    // jackets mark the rest of the gang.
+    this.combat.spawnEnemy(-116, -140, 'Serpent', 100, {
+      faction: 'viper', jacket: 0x2a0a3a, bandana: 0xc23b2e,
+    });
+    const spots = [[-128, -116], [-104, -116], [-116, -152], [-116, -128]];
+    spots.forEach(([x, z], i) => {
+      this.combat.spawnEnemy(x, z, 'Viper ' + (i + 1), 60, {
+        faction: 'viper', jacket: 0x7a2e8f, bandana: 0x7a2e8f,
+      });
+    });
+    this.police.setWanted(3);
+    this.hud.showMessage('Serpent and his Vipers are armed — and the SBPD is coming. End it.', 5);
     this.sound.wantedUp();
   }
 
@@ -653,5 +686,8 @@ window.__solmar = {
     peds: game.peds.length,
     policeCars: game.police.cars.length,
     enemies: game.combat.enemies.length,
+    vipers: game.gangs ? game.gangs.alive : 0,
+    gangAggro: game.combat.gangAggro,
+    lights: game.trafficLights ? game.trafficLights.summary() : null,
   }),
 };
